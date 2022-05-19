@@ -24,5 +24,5 @@ Enhancements](https://github.com/openshift/enhancements). If in doubt,
 you should start with the broader audience found in the main
 enhancements repository.
 
-New enhancements should start with the example [OpenShift Enhancement
-Template](https://github.com/openshift/enhancements/blob/master/guidelines/enhancement_template.md)
+New enhancements should start with the example [Example
+Template](./guidelines/enhancement_template.md)
