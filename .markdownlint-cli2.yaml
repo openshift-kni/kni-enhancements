@@ -39,13 +39,13 @@ config:
 
   # Vertical whitespace helps the reader, so we should turn these on
   # again when someone has time to fix our existing files.
-  blanks-around-fences: true
-  blanks-around-headings: true
+  blanks-around-fences: false
+  blanks-around-headings: false
   blanks-around-lists: false
   single-trailing-newline: true
   no-multiple-blanks: false
 
-  # Trailing spaces don't cause any known issues and are often introduced when 
+  # Trailing spaces don't cause any known issues and are often introduced when
   # updating text to conform to max line length restrictions.
   no-trailing-spaces: false
 
