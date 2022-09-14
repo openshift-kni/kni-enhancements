@@ -1,0 +1,17 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+aliases:
+  kni-enhancements-reviewers:
+    - browsell
+    - donpenney
+    - rcarrillocruz
+    - sabbir-47
+    - fedepaol
+    - irinamihai
+    - imiller0
+    - nishant-parekh
+    - serngawy
+    - vitus133
+    - danielmellado
+    - jc-rh
+    - Missxiaoguo
