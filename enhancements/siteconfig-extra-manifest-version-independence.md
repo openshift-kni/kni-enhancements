@@ -33,15 +33,22 @@ status: provisional
 
 Siteconfig allows customer to include custom extra manifests and list them in the siteconfig CR to be added during CR generation. It provides the flexibility to add additional CRs from the customer point of view during install time along with the CRs the RAN team provides. 
 
-The enhancement seek to address the version independence of extra manifests, by putting version dependent manifests in version specific folder in git and pointing the directory via **extraManifestPath** and disabling the fetching builtIn RAN CRs provided from the ztp container 
+The enhancement seeks to address the version independence of extra manifests, by putting version dependent manifests in version specific folder in git and pointing the directory via **extraManifestPath** and disabling the fetching builtIn RAN CRs provided from the ztp container 
 
 
 ## Motivation
 
-* Currently customer can put custom manifests in the git repo and point them via **extraManifestPath**. 
-* If they only want to include custom CRs to build site specific CRs, **inclusionDefault** must be set to *exclude*, and pass the list of file names under **filter.include**, but it does not allow to have the [same CR name](https://github.com/openshift-kni/cnf-features-deploy/blob/master/ztp/siteconfig-generator/siteConfig/siteConfigBuilder.go#L462-L464) for the custom CRs. 
+* **Currently** customer can put custom manifests in the git repo and point them via **extraManifestPath**. 
+* **Current behavior:** If customer only want to include custom CRs from git directory to build site specific CRs:
+  * **inclusionDefault** must be set to *exclude* which will exclude all the CRs from ztp-container
+  * pass the list of CR file names under **filter.include**, that will include listed CRs. But it limits:
 
-To be able to add custom CRs, customer needs to change the name of the custom CR.
+    * does not allow to have the [same CR name](https://github.com/openshift-kni/cnf-features-deploy/blob/master/ztp/siteconfig-generator/siteConfig/siteConfigBuilder.go#L462-L464) for the custom CRs. 
+
+    * to be able to add custom CRs, customer needs to change the name of the custom CR.
+
+
+    * as a result same named CR coming from user directory doesn't take precedent, rather siteconfig issues an error complaining same named CR is not allowed.
 
 
   ```yaml
@@ -57,15 +64,14 @@ To be able to add custom CRs, customer needs to change the name of the custom CR
 
 ### Goals
 
-- Allow customer to include any custom CRs having same/different name than builtIn CRs residing in the container
-- Provide a better control on how to enable and disable builtIn CRs
-- Keep backward compatibility of the behavior corresponds to 4.13 version.
+* Allow customer to include any custom CRs having same/different name than builtIn CRs residing in the container
+* Same named CR take precedence over ztp-container's CR 
+* Provide a better control on how to enable and disable builtIn CRs which will validate version independence
+* Keep backward compatibility of the behavior corresponds to 4.13 version, meaning `builtinCRs` or the newly introduced parameter is not mandatory to generate CRs through siteconfig.
 
 ### Non-Goals
 
 - TBD
-
-
 ### User Stories
 
 - [EPIC LINK](https://issues.redhat.com/browse/CNF-7365) --> [User Story](https://issues.redhat.com/browse/CNF-8672)
@@ -88,7 +94,15 @@ To be able to add custom CRs, customer needs to change the name of the custom CR
           - myCR.yaml					
   ```
 
-* **Version Independence**: This change will allow customer to have version independence of extra-manifests having different versioned folder in their git repository. Customer can extract versioned extra-manifests and can push to their git repo. An example has shown below:
+* **Version Independence**: 
+  * What is version independence in this context?
+    
+    * The ability to exclude the built in content and the user can set their system up to only ever pull from git. This means they can have a set of 4.12, 4.13, 4.14, ... extra manifests in git and point to the correct set based on what they are deploying (one tool supporting multiple versions).
+
+    * The decoupling of extra-manifests from ztp-container, cuurent ztp-container only contain a single version of extra-manifests. Using the git approach, user doesn't need to launch different versioned ztp-container to deploy different versioned manifests, rather just point towards the correct git repo path.
+
+
+  This change will allow customer to have version independence of extra-manifests having different versioned folder in their git repository, as an example:
 
 
 ```yaml
@@ -106,7 +120,24 @@ siteconfig/
 
 ### Workflow Description
 
-- Due to the proposal, now we have different combination of *include|exclude* in extraManifests and the filter level. Overall 4 scenarios are briefly explained in the below table based on the proposal: 
+* Due to the proposal, now we have different combination of *include|exclude* in extraManifests and the filter level. Overall variable scenarios are briefly explained in the below table based on the proposal and the output list of CRs:
+
+  
+ ```bash
+ extra manifests in the ztp-container
+
+ - A.yaml
+ - B.yaml
+ - C.yaml 
+```
+
+```bash
+ extra manifests in user git repo at extramManifestPath 
+
+ - C.yaml
+ - D.yaml
+ - E.yaml 
+```
 
 <table>
 <tr>
@@ -119,10 +150,63 @@ Version Independence
 <th>
 Logical Flow
 </th>
+<th>
+Output CR list
+</th>
 </tr>
 
 <tr>
+<td>
+<pre>
+ yaml
+ [
+    extraManifestPath: mypath/
+    extraManifests:
+     builtinCRs: exclude					
+  ]
+</pre>
+</td>
 
+<td>
+yes (changes in 4.14)
+</td>
+
+<td>
+  <li>if <span style="color:red">builtinCRs</span> is in <b>exclude</b>, Only CRs from user git repo under <i>extraManifestPath</i>  will be included, none from ztp-container</li>
+ <li>In this example, all the CRs from user git will be added</li>
+</td>
+
+<td>
+ [C.yaml D.yaml E.yaml]
+</td>
+</tr>
+
+<tr>
+<td>
+<pre>
+ yaml
+ [
+    extraManifestPath: mypath/
+    extraManifests:
+     builtinCRs: include					
+  ]
+</pre>
+</td>
+
+<td>
+No (Same as release 4.13)
+</td>
+
+<td>
+  <li>if <span style="color:red">builtinCRs</span> is in <b>include</b>, both CRs from <i>extraManifestPath</i>  and from ztp-container will be included</li>
+ <li>In this example, C.yaml takes precedence over ztp-container</li>
+</td>
+
+<td>
+ [A.yaml B.yaml C.yaml D.yaml E.yaml] <-- C.yaml picked from user git, precedence applied
+</td>
+
+</tr>
 <td>
 <pre>
  yaml
@@ -133,7 +217,7 @@ Logical Flow
       filter:
         inclusionDefault: exclude
         include:
-          - myCR.yaml					
+          - C.yaml					
  ]
 </pre>
 </td>
@@ -143,8 +227,12 @@ yes (changes in 4.14)
 </td>
 
 <td>
-  <li>if <span style="color:red">builtinCRs</span> is in <b>exclude</b>, Only CRs that will be included in site generation are the ones that reside under <i>extraManifestPath</i> in the git, no CR will be fetched from ztp-container</li>
+  <li>if <span style="color:red">builtinCRs</span> is in <b>exclude</b>, Only CRs from user git repo under <i>extraManifestPath</i>  will be included, none from ztp-container</li>
   <li>if the default is <i>exclude</i>, only listed *.yaml files will be included in CR generationfrom extraManifestPath</li>
+</td>
+
+<td>
+ [C.yaml] <--picked from user git
 </td>
 
 </tr>
@@ -161,7 +249,7 @@ yes (changes in 4.14)
       filter:
         inclusionDefault: include
         exclude:
-          - myCR.yaml					
+          - C.yaml					
   ]
 </pre>
 </td>
@@ -171,12 +259,13 @@ yes (changes in 4.14)
 </td>
 
 <td>
-  <li>if <span style="color:red">builtinCRs</span> is in <b>exclude</b>, Only CRs that will be included in site generation are the one that reside under <i>extraManifestPath</i> in the git, no CR will be fetched from ztp-container</li>
+  <li>if <span style="color:red">builtinCRs</span> is in <b>exclude</b>, Only CRs from user git repo under <i>extraManifestPath</i>  will be included, none from ztp-container</li>
  <li>if the default is <i>include</i>, only listed *.yaml files will be excluded in CR generation from extraManifestPath</li>
 </td>
 
-</tr>
-</tr>
+<td>
+ [D.yaml E.yaml]
+</td>
 
 <tr>
 <td>
@@ -189,7 +278,7 @@ yes (changes in 4.14)
       filter:
         inclusionDefault: include
         exclude:
-          - myCR.yaml					
+          - C.yaml					
   ]
 </pre>
 </td>
@@ -201,13 +290,14 @@ No (Same as release 4.13)
 <td>
 <li> Current behavior is explained <a href="https://github.com/openshift-kni/cnf-features-deploy/blob/master/ztp/gitops-subscriptions/argocd/ExtraManifestsFilter.md">in the doc</a></li>
 
- <li>When <span style="color:red">builtinCRs</span> is in <b>include</b>, all the CRs resides under <i>extraManifestPath</i> and in the ztp-container will be allowed to be added in the interim list of CRs</li>
- <li> Then in the filter if the default is include, the interim list will be updated with the exclude list of CRs, which will be discarded from the final list</li>
- <li>Customer is not allowed to put same named CR in the extraManifestPath to the RAN CRs coming from ztp-container</li>
+ <li>if <span style="color:red">builtinCRs</span> is in <b>include</b>, both CRs from <i>extraManifestPath</i>  and from ztp-container will be included</li>
+ <li> the interim list will be updated with the exclude list of CRs, which will be discarded from the final list</li>
+ 
 </td>
 
-</tr>
-</tr>
+<td>
+ [A.yaml B.yaml D.yaml E.yaml] 
+</td>
 
 <tr>
 <td>
@@ -220,7 +310,9 @@ No (Same as release 4.13)
       filter:
         inclusionDefault: exclude
         include:
-          - myCR.yaml					
+          - A.yaml
+          - B.yaml
+          - c.yaml					
   ]
 </pre>
 </td>
@@ -232,15 +324,15 @@ No (Same as release 4.13)
 <td>
  <li> Current behavior is explained <a href="https://github.com/openshift-kni/cnf-features-deploy/blob/master/ztp/gitops-subscriptions/argocd/ExtraManifestsFilter.md">in the doc</a></li>
 
- <li>When <span style="color:red">builtinCRs</span> is in <b>include</b>, all the CRs resides under <i>extraManifestPath</i> and in the ztp-container will be allowed to be added in the interim list of CRs</li>
- <li> Then in the filter if the default is exclude, all the CRs will be excluded and the list will be updated with the listed CRs under include. </li>
- <li>Customer is not allowed to put same named CR in the extraManifestPath to the RAN CRs coming from ztp-container</li>
+  <li>if <span style="color:red">builtinCRs</span> is in <b>include</b>, both CRs from <i>extraManifestPath</i>  and from ztp-container will be included</li>
+ <li> if the filter default is exclude, all the CRs will be excluded and the list will be updated with the listed CRs under include. </li>
+ <li>same named CR from user git repo will take precedence</li>
 
 </td>
 
-</tr>
-</tr>
-
+<td>
+ [A.yaml B.yaml C.yaml] <-- C.yaml picked from user git, precedence applied
+</td>
 </table>
          
  
@@ -283,7 +375,7 @@ New parameter will be introduced named <span style="color:red">builtinCRs</span>
 
 - When <span style="color:red">builtinCRs</span> is **exclude**, same named CR in extraManifestPath to ztp-container is allowed.
 
-- Ensure backward compatibitlity, if <span style="color:red">builtinCRs</span> is not defined, the behavior must corresponds to the last release(4.13)
+- Ensure backward compatibility, if <span style="color:red">builtinCRs</span> is not defined, the behavior must correspond to the last release(4.13)
 
 
 
