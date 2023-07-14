@@ -460,6 +460,23 @@ negative test scenarios.
 
 Initial development will be done with beta versioning (0.x)
 
+#### Dev Preview -> Tech Preview
+Initial feedback on the diff tool will be taken from use of the tool in validation of existing test
+environments.
+
+Initial feedback on the reference configuration format will be derived from conversion of the RAN DU
+reference configuration.
+
+As discussed under "Test Plan" a significant portion of testing can be done as automated tests in
+the upstream CI.
+
+#### Tech Preview -> GA
+
+TBD
+
+#### Removing a deprecated feature
+
+First implementation. No deprecations.
 
 ### Upgrade / Downgrade Strategy
 
