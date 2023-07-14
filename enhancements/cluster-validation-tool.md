@@ -26,30 +26,58 @@ superseded-by:
 
 ## Summary
 
-Provide a tool which is capable of comparing cluster configuration CRs against a known reference and report on drift/deviations. The input cluster configuration may be provided in a variety of forms ranging from an "offline" set of CRs (eg support archive, directory tree, etc) or pulled via API access against a live cluster. In addition to the tooling to perform this comparison, this enhancement defines the structure and method of capturing known user variation, optional components, and required content in the reference configuration.
+Provide a tool which is capable of comparing cluster configuration CRs against a known reference and
+report on drift/deviations. The input cluster configuration may be provided in a variety of forms
+ranging from an "offline" set of CRs (eg support archive, directory tree, etc) or pulled via API
+access against a live cluster. In addition to the tooling to perform this comparison, this
+enhancement defines the structure and method of capturing known user variation, optional components,
+and required content in the reference configuration.
 
 ## Motivation
 
-Many cluster deployments are based on engineered and validated reference configurations. These reference configurations have been designed to ensure a cluster will meet the functional, feature, performance and resource requirements for specific use cases. When a cluster, or deployment of clusters, deviates from the reference configuration the impacts may be subtle, transient, or delayed for some period of time. When working with these clusters across their lifetimes it is important to be able to validate the configuration against the known working reference configuration to identify potential issues before they impact end users, service level agreements, or cluster uptime.
+Many cluster deployments are based on engineered and validated reference configurations. These
+reference configurations have been designed to ensure a cluster will meet the functional, feature,
+performance and resource requirements for specific use cases. When a cluster, or deployment of
+clusters, deviates from the reference configuration the impacts may be subtle, transient, or delayed
+for some period of time. When working with these clusters across their lifetimes it is important to
+be able to validate the configuration against the known working reference configuration to identify
+potential issues before they impact end users, service level agreements, or cluster uptime.
 
-This enhancement describes a tool capable of doing an "intelligent" diff between a reference configuration and a set of CRs representative of a deployed "production" cluster. These CRs may derive from many potential sources such as being pulled from a live cluster, read from a git repository, or extracted from a support archive. The reference configuration is sufficiently annotated to describe expected user variations versus required content.
+This enhancement describes a tool capable of doing an "intelligent" diff between a reference
+configuration and a set of CRs representative of a deployed "production" cluster. These CRs may
+derive from many potential sources such as being pulled from a live cluster, read from a git
+repository, or extracted from a support archive. The reference configuration is sufficiently
+annotated to describe expected user variations versus required content.
 
 Existing tools meet some of this need but fall short of the goals
-- kubectl/oc diff: This tool allows comparison of a live cluster against a known configuration. There are two shortcomings we need to address. 1) Ability to handle expected user variation vs required content. 2) Consumption of an offline representation of the cluster configuration.
-- `<get cr> | <key sorting> | diff` : There are various ways of chaining together existing tools to obtain, correlate, and compare/diff two YAML objects. These methods fall short in 1) Ability to handle expected user variation vs required content.
+- kubectl/oc diff: This tool allows comparison of a live cluster against a known configuration.
+  There are two shortcomings we need to address:
+  - Ability to handle expected user variation vs required content.
+  - Consumption of an offline representation of the cluster configuration.
+- `<get cr> | <key sorting> | diff` : There are various ways of chaining together existing tools
+  to obtain, correlate, and compare/diff two YAML objects. These methods fall short in 1) Ability
+  to handle expected user variation vs required content.
 
-The proposal describes both the representational format of the reference configuration as well as the functionality of the tool which will perform the comparison.
+The proposal describes both the representational format of the reference configuration as well as
+the functionality of the tool which will perform the comparison.
 
 ### User Stories
 
-As an end customer I want to be able to compare the configuration of my clusters against the validated reference configuration. I want the tool to report significant drift and to suppress "diffs" which are expected user variations and runtime variable fields (eg status/metadata). I want the tool to report drift in deployed CRs as well as required CRs which are missing. I want to be able to run the tool at various points in the deployment lifecycle including against:
-my live production clusters
-source (eg generic/templated) CRs in my planning labs
-reference CRs provided by partner
+As an end customer I want to be able to compare the configuration of my clusters against the
+validated reference configuration. I want the tool to report significant drift and to suppress
+"diffs" which are expected user variations and runtime variable fields (eg status/metadata). I want
+the tool to report drift in deployed CRs as well as required CRs which are missing. I want to be
+able to run the tool at various points in the deployment lifecycle including against:
+* my live production clusters
+* source (eg generic/templated) CRs in my planning labs
+* reference CRs provided by partner
 
-As a support engineer helping to triage/debug issues with a customer or partner I want to be able to compare the configuration of a cluster as captured in a support archive against a validated reference configuration.
+As a support engineer helping to triage/debug issues with a customer or partner I want to be able to
+compare the configuration of a cluster as captured in a support archive against a validated
+reference configuration.
 
-As a provider of reference configurations I want to be able to provide a new or updated validated reference configuration without the need to rebuild the validation tool.
+As a provider of reference configurations I want to be able to provide a new or updated validated
+reference configuration without the need to rebuild the validation tool.
 
 ### Goals
 
@@ -59,17 +87,26 @@ The following goals apply to the validation (diff) tool:
 1. Can consume input configuration CRs from live cluster
 1. Can consume input configuration CRs from a support archive
 1. Can consume input from local filesystem (files, directories, etc)
-1. Will suppress diffs (not report as a drift) for runtime variable fields (status, managed metadata, etc)
-1. Will suppress diffs (not report as a drift) for know user variable content as described by the reference configuration
-1. Will show diffs (report as drift) for content in input configuration which does not match reference
-1. Will show diffs (report as drift) for reference configuration content missing from input configuration
-1. Will show diffs (informational) for content in input configuration which is not contained in reference
-1. Allows comparison against one-of-several in reference configuration (ie an input configuration CR compared against one of several optional implementations in the reference configuration)
+1. Will suppress diffs (not report as a drift) for runtime variable fields (status, managed
+   metadata, etc)
+1. Will suppress diffs (not report as a drift) for know user variable content as described by the
+   reference configuration
+1. Will show diffs (report as drift) for content in input configuration which does not match
+   reference
+1. Will show diffs (report as drift) for reference configuration content missing from input
+   configuration
+1. Will show diffs (informational) for content in input configuration which is not contained in
+   reference
+1. Allows comparison against one-of-several in reference configuration (ie an input configuration CR
+   compared against one of several optional implementations in the reference configuration)
 
 ### Non-Goals
 
-1. Validation which goes beyond what is available in the configuration CRs – deeper inspection/analysis is the domain of other tools such as Insights – see [CNF-9064](https://issues.redhat.com/browse/CNF-9064).
-1. Validation of configuration CRs against CRD (ie validation of their correctness or ability to be successfully applied to a cluster)
+1. Validation which goes beyond what is available in the configuration CRs – deeper
+   inspection/analysis is the domain of other tools such as Insights – see
+   [CNF-9064](https://issues.redhat.com/browse/CNF-9064).
+1. Validation of configuration CRs against CRD (ie validation of their correctness or ability to be
+   successfully applied to a cluster)
 
 ## Proposal
 
@@ -80,31 +117,54 @@ The following goals apply to the validation (diff) tool:
 
 ### Validation Tool Implementation
 
-The validation tool will operate similarly to a standard Linux `diff` tool which operates across a set of inputs (eg directory trees). The left hand side of the diff will be the selected reference configuration (see below for structure/contents of the reference) and the right hand side will be a collection of the user’s configuration CRs. For each file in the user’s configuration the tool will find the best match CR in the reference configuration to perform the comparison. The tool will display to any drift which consists of differences considered outside the expected set of variability as defined by the reference configuration. The tool will highlight this drift which needs to be brought into compliance with the reference. In addition to the CR comparison output the tool will output a report detailing:
-Input configuration CRs with no match in the reference
-Required reference CRs with no match in the input configuration
-Number of drifts found
+The validation tool will operate similarly to a standard Linux `diff` tool which operates across a
+set of inputs (eg directory trees). The left hand side of the diff will be the selected reference
+configuration (see below for structure/contents of the reference) and the right hand side will be a
+collection of the user’s configuration CRs. For each file in the user’s configuration the tool will
+find the best match CR in the reference configuration to perform the comparison. The tool will
+display to any drift which consists of differences considered outside the expected set of
+variability as defined by the reference configuration. The tool will highlight this drift which
+needs to be brought into compliance with the reference. In addition to the CR comparison output the
+tool will output a report detailing:
+* Input configuration CRs with no match in the reference
+* Required reference CRs with no match in the input configuration
+* Number of drifts found
 
 #### Categorization of differences
-When comparison of a field in the input vs the reference shows a difference the tool categorizes it into one of these outcomes:
+When comparison of a field in the input vs the reference shows a difference the tool categorizes it
+into one of these outcomes:
 1. Expected user variation – the tool output does not indicate this as drift
-1. Missing required content – the reference contains required items not found in the input configuration. This is a drift.
-1. Extra content – the input configuration contains content not included in the reference configuration. The tool displays this as informational output. This is not a drift.
-1. Drift – the input configuration does not match or is outside expected user variation compared to the reference. This is a highlighted drift.
+1. Missing required content – the reference contains required items not found in the input
+   configuration. This is a drift.
+1. Extra content – the input configuration contains content not included in the reference
+   configuration. The tool displays this as informational output. This is not a drift.
+1. Drift – the input configuration does not match or is outside expected user variation compared to
+   the reference. This is a highlighted drift.
 
 #### Inputs
 
-The tool consumes two mandatory inputs and may support additional options to control the comparison, output, etc.
+The tool consumes two mandatory inputs and may support additional options to control the comparison,
+output, etc.
 
-The reference configuration is a required input. The structure of the reference is described below. The minimum requirement is that the reference can be located on the local filesystem (eg directory). Optionally the reference may be sourced via URL, container image, or other source.
+The reference configuration is a required input. The structure of the reference is described
+below. The minimum requirement is that the reference can be located on the local filesystem (eg
+directory). Optionally the reference may be sourced via URL, container image, or other source.
 
-The input configuration is a required input. The minimum requirement is that this configuration can be located on the local filesystem. Optionally the input configuration may be pulled from a live cluster (access credentials required), a support archive, etc. If pulling from a live cluster is a supported method for the tool to get the input configuration, the tool may infer this behavior when supplied with only a reference configuration as input. This allows the tool to work as a kubectl/oc plugin.
+The input configuration is a required input. The minimum requirement is that this configuration can
+be located on the local filesystem. Optionally the input configuration may be pulled from a live
+cluster (access credentials required), a support archive, etc. If pulling from a live cluster is a
+supported method for the tool to get the input configuration, the tool may infer this behavior when
+supplied with only a reference configuration as input. This allows the tool to work as a kubectl/oc
+plugin.
 
 All input formats and options must be implemented to allow the tool to operate as a kubectl/oc plugin.
 
 #### Correlating CRs
 
-The tool must correlate CRs between reference and input configurations to perform the comparisons. The tool will use the input configuration apiVersion, kind, namespace and CR name to perform the correlation to one or more reference configuration CRs. For cluster scoped CRs the namespace will be nil.
+The tool must correlate CRs between reference and input configurations to perform the
+comparisons. The tool will use the input configuration apiVersion, kind, namespace and CR name to
+perform the correlation to one or more reference configuration CRs. For cluster scoped CRs the
+namespace will be nil.
 1. Exact match of apiVersion-kind-namespace-name
 1. Match kind-namespace
 	1. If single result in reference, comparison will be done
@@ -116,7 +176,10 @@ The tool must correlate CRs between reference and input configurations to perfor
 
 #### Output
 
-The tool will generate standard diff output highlighting content as described in "Categorization of differences". Note in this example the cpusets and hugepage count are not highlighted as these are expected user variations. The hugepage node is indicated as extra content and the realtime kernel setting is indicated as a drift
+The tool will generate standard diff output highlighting content as described in "Categorization of
+differences". Note in this example the cpusets and hugepage count are not highlighted as these are
+expected user variations. The hugepage node is indicated as extra content and the realtime kernel
+setting is indicated as a drift
 
 ```diff
 ---
@@ -163,20 +226,36 @@ Summary
 
 #### Tool delivery
 
-The tool will be a standalone binary executable suitable for direct use by customers, developers, support engineering, etc. The tool may be installed as a kubectl/oc plugin.
+The tool will be a standalone binary executable suitable for direct use by customers, developers,
+support engineering, etc. The tool may be installed as a kubectl/oc plugin.
 
 ### Reference Configuration Specification
 
-The reference configuration consists of a set of CRs (yaml files with one CR per file) with annotations/metadata to describe expected variability. The reference configuration CRs conform to these criteria:
-1. Each CR may be annotated as a required (ie a compliant cluster must contain at least one of that CR) or optional CR.
-1. Each CR may contain annotations to indicate fields which have expected user variation or which are optional.
-1. Any field of a reference configuration CR which is not otherwise annotated is required and the value must be as specified in order to be compliant.
+The reference configuration consists of a set of CRs (yaml files with one CR per file) with
+annotations/metadata to describe expected variability. The reference configuration CRs conform to
+these criteria:
+1. Each CR may be annotated as a required (ie a compliant cluster must contain at least one of that
+   CR) or optional CR.
+1. Each CR may contain annotations to indicate fields which have expected user variation or which
+   are optional.
+1. Any field of a reference configuration CR which is not otherwise annotated is required and the
+   value must be as specified in order to be compliant.
 
 #### Reference CR Annotations
 
-Annotations attached to the CRs are used for providing additional data used during validation. In the initial version of this tool the annotation is used in making two determinations:
-1. The `component-name` is used to group together related CRs in order to capture optional groups of CRs (eg combination of optional Operator subscription and configuration CRs). If any of the required CRs (see `required` next) are included in the input configuration then all required CRs in the group are expected to be included and any which are missing will be reported. If none of the required CRs in the group are included then no report of "missing content" for the group will be generated. Optionally the tool may allow for explicit include/exclude of a component-name by command line argument.
-1. The `required` field indicates if the CR must be present in the input configuration. Any required CR which is not included is reported in the summary as "missing content". The required field has a scope of "within the component-name". If a specfici component-name is not included in the analysis then any required CRs within that component are not flagged as missing content.
+Annotations attached to the CRs are used for providing additional data used during validation. In
+the initial version of this tool the annotation is used in making two determinations:
+1. The `component-name` is used to group together related CRs in order to capture optional groups of
+   CRs (eg combination of optional Operator subscription and configuration CRs). If any of the
+   required CRs (see `required` next) are included in the input configuration then all required CRs
+   in the group are expected to be included and any which are missing will be reported. If none of
+   the required CRs in the group are included then no report of "missing content" for the group will
+   be generated. Optionally the tool may allow for explicit include/exclude of a component-name by
+   command line argument.
+1. The `required` field indicates if the CR must be present in the input configuration. Any required
+   CR which is not included is reported in the summary as "missing content". The required field has
+   a scope of "within the component-name". If a specfici component-name is not included in the
+   analysis then any required CRs within that component are not flagged as missing content.
 
 | key | value | default |
 | --- | ---- | --- |
@@ -195,7 +274,9 @@ metadata:
 ```
 
 #### Example Reference Configuration CR
-User variable content is handled by golang formatted templating within the reference configuration CRs. This templating format allows for simple "any value", complex validation, and conditional inclusion/exclusion of content. The following types of user variation are expected to be handled:
+User variable content is handled by golang formatted templating within the reference configuration
+CRs. This templating format allows for simple "any value", complex validation, and conditional
+inclusion/exclusion of content. The following types of user variation are expected to be handled:
 1. Mandatory user-defined fields. Examples are marked #1.
 1. Optional user-defined fields. Examples are marked #2
 1. Validation of user defined fields. Examples are marked with #3-n
@@ -277,30 +358,56 @@ Golang supports handling of these types through template processing:
 
 #### Diff
 
-Once the validations are complete we run a diff between the user's input configuration (now validated) CR vs the resolved template (user variable input is pulled from input config into the resolved template). This final step is needed to error/warn user of remaining drift that validation steps may not catch
+Once the validations are complete we run a diff between the user's input configuration (now
+validated) CR vs the resolved template (user variable input is pulled from input config into the
+resolved template). This final step is needed to error/warn user of remaining drift that validation
+steps may not catch
 - E.g use case: reference may have a hardcoded field such as a namespace name and the user must comply.
 
-The primary output of this step is a side-by-side diff as shown in the output section above. To achieve this meaningful diff the tool must do perform two operations:
-1. Render the CRs into a comparable format. This involves doing a hierarchical sorting of the keys to ensure consistent ordering when the CRs are rendered.
+The primary output of this step is a side-by-side diff as shown in the output section above. To
+achieve this meaningful diff the tool must do perform two operations:
+1. Render the CRs into a comparable format. This involves doing a hierarchical sorting of the keys
+   to ensure consistent ordering when the CRs are rendered.
 1. Perform the diff
 
-There are several methods of implementation which can be considered. As part of an initial spike two options were looked at:
+There are several methods of implementation which can be considered. As part of an initial spike two
+options were looked at:
 * the golang custom `Reporter`
-* the K8s built-in `diff` command which combines patching and an external diff tool via `KUBECTL_EXTERNAL_DIFF`. This existing functionality targets a live cluster and would need to be copied/updated for local diff.
+* the K8s built-in `diff` command which combines patching and an external diff tool via
+  `KUBECTL_EXTERNAL_DIFF`. This existing functionality targets a live cluster and would need to be
+  copied/updated for local diff.
 
-A combination of both methods may be used to produce the final CRA and CRB ready to be diff and then run in through logic similar to the K8s diff module (modified for local use)
+A combination of both methods may be used to produce the final CRA and CRB ready to be diff and then
+run in through logic similar to the K8s diff module (modified for local use)
 
 
 #### Relationship to PolicyGen and ACM PolicyGenerator
 
-The initial reference configuration will be for the RAN DU use case for which there is an existing set of CRs serving as both the reference configuration and the baseline set of CRs used in deployment of compliant clusters. Any modifications done to these CRs in support of use as a reference configuration for this tool must not prevent their use in deployment.
+The initial reference configuration will be for the RAN DU use case for which there is an existing
+set of CRs serving as both the reference configuration and the baseline set of CRs used in
+deployment of compliant clusters. Any modifications done to these CRs in support of use as a
+reference configuration for this tool must not prevent their use in deployment.
 
-To ensure that both tool flows (validation and deployment) are supported by a single set of reference configuration CRs the work under this enhancement will define a translation (separate tool/function from validation tool) from templated reference configuration (as defined above) into a rendered set of "source CRs" which can be used for deployment. This translation is a simple process which consumes the reference configuration and the appropriate set of default values for all required templated fields. The proposed template syntax is defined to pull values from the user specified files which makes the translation a trivial process of providing a default set of inputs into the normal execution. The resulting generated CRs will identically match the existing "source CRs" in use today.
+To ensure that both tool flows (validation and deployment) are supported by a single set of
+reference configuration CRs the work under this enhancement will define a translation (separate
+tool/function from validation tool) from templated reference configuration (as defined above) into a
+rendered set of "source CRs" which can be used for deployment. This translation is a simple process
+which consumes the reference configuration and the appropriate set of default values for all
+required templated fields. The proposed template syntax is defined to pull values from the user
+specified files which makes the translation a trivial process of providing a default set of inputs
+into the normal execution. The resulting generated CRs will identically match the existing "source
+CRs" in use today.
 
-The process of generating source CRs from the reference configuration will be done by developers when any changes are made to the reference configuration. A CI job will verify and enforce that the derived source-CRs are always in sync with changes to the reference. This ensures that the upstream repository continues to contain valid and current reference configuration and source CRs.
+The process of generating source CRs from the reference configuration will be done by developers
+when any changes are made to the reference configuration. A CI job will verify and enforce that the
+derived source-CRs are always in sync with changes to the reference. This ensures that the upstream
+repository continues to contain valid and current reference configuration and source CRs.
 
 #### Other non-selected options for Reference Configuration Specification
-We looked into using `$val` syntax used by PolicyGenTemplate binary and found in source-cr files. It is somewhat "custom" (the words used after $ is arbitrary) and generally used only as a marker for search-replace commands. This syntax does not support any specification of required vs optional, nor does it allow for validation of allowable range/values.
+We looked into using `$val` syntax used by PolicyGenTemplate binary and found in source-cr files. It
+is somewhat "custom" (the words used after $ is arbitrary) and generally used only as a marker for
+search-replace commands. This syntax does not support any specification of required vs optional, nor
+does it allow for validation of allowable range/values.
 
 ### Workflow Description
 
@@ -318,17 +425,24 @@ None
 ### Implementation Details/Notes/Constraints [optional]
 
 The reference configuration CRs serve two purposes
+
 1. The source reference for this comparison tool
-1. The baseline CRs used when customers deploy a cluster compliant with the reference
-The format and structure of annotations introduced in support of this tool must be compatible with the second (deployment) use case. See "Relationship to PolicyGen and ACM PolicyGenerator" above.
+1. The baseline CRs used when customers deploy a cluster compliant with the reference The format and
+structure of annotations introduced in support of this tool must be compatible with the second
+(deployment) use case. See "Relationship to PolicyGen and ACM PolicyGenerator" above.
 
 ### Risks and Mitigations
 
-1. Risk of false negatives when performing comparisons – Giving the user a false indication that a cluster is compliant will lead to degraded performance or functionality. These could be introduced by bugs in the tool or reference configuration. Leveraging standard templating syntax and libraries for performing the analysis (parsers, template handling, comparison) mitigates the risk.
+1. Risk of false negatives when performing comparisons – Giving the user a false indication that a
+   cluster is compliant will lead to degraded performance or functionality. These could be
+   introduced by bugs in the tool or reference configuration. Leveraging standard templating syntax
+   and libraries for performing the analysis (parsers, template handling, comparison) mitigates the
+   risk.
 
 ### Drawbacks
 
-Existing tools can perform a diff of two CRs – This tool extends that functionality to allow for expected variations, optional content, and detection of missing/unmatched content.
+Existing tools can perform a diff of two CRs – This tool extends that functionality to allow for
+expected variations, optional content, and detection of missing/unmatched content.
 
 ## Design Details
 
@@ -338,7 +452,9 @@ None (yet)
 
 ### Test Plan
 
-Primary testing will be through automated upstream CI. The tool is a standalone executable which can be exercised through a set of inputs with deterministic outputs. The CI will cover both positive and negative test scenarios.
+Primary testing will be through automated upstream CI. The tool is a standalone executable which can
+be exercised through a set of inputs with deterministic outputs. The CI will cover both positive and
+negative test scenarios.
 
 ### Graduation Criteria
 
@@ -372,10 +488,13 @@ N/A
 ## Alternatives
 
 ### kubectl/oc diff
-The existing kubectl/oc diff works well for validation of a CR (or set of CRs) on a cluster against a known valid configuration. This tool does a good job of suppressing diffs in known managed fields (eg metadata, status, etc), however it is lacking in several critical features for the use cases in this enhancement:
-Suppression of expected user variations
-Handling of one-to-many matches
-Comparison of two offline files
+The existing kubectl/oc diff works well for validation of a CR (or set of CRs) on a cluster against
+a known valid configuration. This tool does a good job of suppressing diffs in known managed fields
+(eg metadata, status, etc), however it is lacking in several critical features for the use cases in
+this enhancement:
+* Suppression of expected user variations
+* Handling of one-to-many matches
+* Comparison of two offline files
 
 ### Command line utilities
 diff -t -y -w <(yq 'sort_keys(..)' /path/to/reference/config/cr) <(yq 'sort_keys(..)' /path/to/input/cr )
