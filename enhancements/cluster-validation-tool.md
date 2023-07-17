@@ -26,12 +26,15 @@ superseded-by:
 
 ## Summary
 
-Provide a tool which is capable of comparing cluster configuration CRs against a known reference and
-report on drift/deviations. The input cluster configuration may be provided in a variety of forms
-ranging from an "offline" set of CRs (eg support archive, directory tree, etc) or pulled via API
-access against a live cluster. In addition to the tooling to perform this comparison, this
-enhancement defines the structure and method of capturing known user variation, optional components,
-and required content in the reference configuration.
+Provide a tool which is capable of performing an intelligent diff between cluster configuration CRs
+and a known valid reference configuration. The reference configuration may contain required and
+optional content as well as an understanding of user-variable content. The input cluster
+configuration may be provided in a variety of forms ranging from an "offline" set of CRs (eg support
+archive, directory tree, etc) or pulled via API access against a live cluster.
+
+In addition to the tooling to perform this comparison, this enhancement defines the structure and
+method of capturing known user variation, optional components, and required content in the reference
+configuration.
 
 ## Motivation
 
@@ -40,11 +43,11 @@ reference configurations have been designed to ensure a cluster will meet the fu
 performance and resource requirements for specific use cases. When a cluster, or deployment of
 clusters, deviates from the reference configuration the impacts may be subtle, transient, or delayed
 for some period of time. When working with these clusters across their lifetimes it is important to
-be able to validate the configuration against the known working reference configuration to identify
+be able to validate the configuration against the known valid reference configuration to identify
 potential issues before they impact end users, service level agreements, or cluster uptime.
 
 This enhancement describes a tool capable of doing an "intelligent" diff between a reference
-configuration and a set of CRs representative of a deployed "production" cluster. These CRs may
+configuration and a set of CRs representative of a deployed production cluster. These CRs may
 derive from many potential sources such as being pulled from a live cluster, read from a git
 repository, or extracted from a support archive. The reference configuration is sufficiently
 annotated to describe expected user variations versus required content.
@@ -303,14 +306,14 @@ spec:
     - "module_blacklist=irdma"
   cpu:
     isolated: {{ .spec.cpu.isolated  }} # #1 mandatory user variable content
-    reserved: {{ .spec.cpu.reserved  }} # #1 mandatory user variable content
+    reserved: {{ .spec.cpu.reserved  }} {{ if cpuSetSize .spec.cpu.reserved lt 4 }}is too few reserved cores.{{ end }} # #1 mandatory user variable content, with validation
   hugepages:
     defaultHugepagesSize: {{ .spec.hugepages.defaultHugepagesSize  }} # #1 mandatory
     pages:
       {{- maxListLength 1   .spec.hugepages.pages }} #3-1 defined in Go
         {{- range .spec.hugepages.pages }}
       - size:  {{block "validatesize" .}} {{ .size  }} {{end}} #3-2 can be defined later during runtime or falls back to .size
-        count: {{ .count }} {{ if eq "float64" (printf "%T" .count) }}is a float64 {{ else }} is not a float64{{ end }}
+        count: {{ .count }}
         {{ if .node }} # #2 Optional user defined field with validation
         node: {{ if eq .node nil }}you can't do that...must initialize!{{ else }}{{ .node }}{{ end }}
         {{ end }}
@@ -333,11 +336,6 @@ spec:
   # consider using workloadHints
   {{- end }}
 
-
-# a template func
-{{define "pasteArbitraryToYaml"}}
-{{ . | RanToYaml}}
-{{end}}
 ```
 
 Golang supports handling of these types through template processing:
