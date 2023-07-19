@@ -26,11 +26,11 @@ superseded-by:
 
 ## Summary
 
-Provide a tool which is capable of performing an intelligent diff between cluster configuration CRs
-and a known valid reference configuration. The reference configuration may contain required and
-optional content as well as an understanding of user-variable content. The input cluster
-configuration may be provided in a variety of forms ranging from an "offline" set of CRs (eg support
-archive, directory tree, etc) or pulled via API access against a live cluster.
+Provide a tool which is capable of performing an intelligent diff between a known valid reference
+configuration and a set of specific cluster configuration CRs. The reference configuration may
+contain required and optional content as well as an understanding of user-variable content. The
+input cluster configuration may be provided in a variety of forms ranging from an "offline" set of
+CRs (eg support archive, directory tree, etc) or pulled via API access against a live cluster.
 
 In addition to the tooling to perform this comparison, this enhancement defines the structure and
 method of capturing known user variation, optional components, and required content in the reference
@@ -40,17 +40,24 @@ configuration.
 
 Many cluster deployments are based on engineered and validated reference configurations. These
 reference configurations have been designed to ensure a cluster will meet the functional, feature,
-performance and resource requirements for specific use cases. When a cluster, or deployment of
-clusters, deviates from the reference configuration the impacts may be subtle, transient, or delayed
-for some period of time. When working with these clusters across their lifetimes it is important to
-be able to validate the configuration against the known valid reference configuration to identify
-potential issues before they impact end users, service level agreements, or cluster uptime.
+performance and resource requirements for specific use cases. A customer will take the reference
+configuration and adapt it for their particular environment adding variations to account for their
+networking topology, specific servers/hardware in use, optional features, etc. It is this adapted
+version of the configuration which is then applied to their cluster, or replicated across a large
+scale deployment of clusters. When this adapted configuration deviates from the reference
+configuration the impacts may be subtle, transient, or delayed for some period of time. When working
+with these clusters across their lifetimes it is important to be able to validate the configuration
+against the known valid reference configuration to identify potential issues before they impact end
+users, service level agreements, or cluster uptime.
 
 This enhancement describes a tool capable of doing an "intelligent" diff between a reference
-configuration and a set of CRs representative of a deployed production cluster. These CRs may
-derive from many potential sources such as being pulled from a live cluster, read from a git
-repository, or extracted from a support archive. The reference configuration is sufficiently
-annotated to describe expected user variations versus required content.
+configuration and a set of CRs representative of a deployed production cluster. These CRs may derive
+from many potential sources such as being pulled from a live cluster, read from a git repository, or
+extracted from a support archive. The reference configuration is sufficiently annotated to describe
+expected user variations versus required content.
+
+![Diagram showing reference config and user config as input to proposed validation
+tool](./images/cluster-validation-tool-inputs.png)
 
 Existing tools meet some of this need but fall short of the goals
 - kubectl/oc diff: This tool allows comparison of a live cluster against a known configuration.
@@ -123,12 +130,22 @@ The following goals apply to the validation (diff) tool:
 The validation tool will operate similarly to a standard Linux `diff` tool which operates across a
 set of inputs (eg directory trees). The left hand side of the diff will be the selected reference
 configuration (see below for structure/contents of the reference) and the right hand side will be a
-collection of the user’s configuration CRs. For each file in the user’s configuration the tool will
-find the best match CR in the reference configuration to perform the comparison. The tool will
-display to any drift which consists of differences considered outside the expected set of
-variability as defined by the reference configuration. The tool will highlight this drift which
-needs to be brought into compliance with the reference. In addition to the CR comparison output the
-tool will output a report detailing:
+collection of the user’s configuration CRs. The logical flow of the tool will be:
+1. User invokes the tool with the two inputs: `validationTool ./referenceConfig/ ./userConfig/`
+1. For each CR in `./userConfig`
+  1. Correlate the CR to a referenceConfig CR using api-kind-namespace-name (see [Correlating CRs](#
+     Correlating-CRs) below)
+  1. Generate a rendered reference CR. Expected user variable content is pulled from the input CR,
+     validated, and inserted into the rendered reference CR.
+  1. Perform and standard Linux `diff` between rendered reference CR and the input CR. Any
+     non-expected variations and/or missing content are reported.
+1. For each unused required reference CR (see [Reference CR Annotations](#
+   Reference-CR-Annotations)) report missing content
+
+As described in the logical flow the tool will any differences considered outside the expected set
+of variability as defined by the reference configuration (termed "drift"). The tool will highlight
+this drift which needs to be brought into compliance with the reference. In addition to the CR
+comparison output the tool will output a report detailing:
 * Input configuration CRs with no match in the reference
 * Required reference CRs with no match in the input configuration
 * Number of drifts found
