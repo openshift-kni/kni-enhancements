@@ -133,12 +133,12 @@ configuration (see below for structure/contents of the reference) and the right 
 collection of the user’s configuration CRs. The logical flow of the tool will be:
 1. User invokes the tool with the two inputs: `validationTool ./referenceConfig/ ./userConfig/`
 1. For each CR in `./userConfig`
-  1. Correlate the CR to a referenceConfig CR using api-kind-namespace-name (see [Correlating CRs](#
-     Correlating-CRs) below)
-  1. Generate a rendered reference CR. Expected user variable content is pulled from the input CR,
-     validated, and inserted into the rendered reference CR.
-  1. Perform and standard Linux `diff` between rendered reference CR and the input CR. Any
-     non-expected variations and/or missing content are reported.
+    1. Correlate the CR to a referenceConfig CR using api-kind-namespace-name (see [Correlating
+       CRs](# Correlating-CRs) below)
+    1. Generate a rendered reference CR. Expected user variable content is pulled from the input CR,
+       validated, and inserted into the rendered reference CR.
+    1. Perform and standard Linux `diff` between rendered reference CR and the input CR. Any
+       non-expected variations and/or missing content are reported.
 1. For each unused required reference CR (see [Reference CR Annotations](#
    Reference-CR-Annotations)) report missing content
 
