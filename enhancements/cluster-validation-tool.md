@@ -132,6 +132,11 @@ set of inputs (eg directory trees). The left hand side of the diff will be the s
 configuration (see below for structure/contents of the reference) and the right hand side will be a
 collection of the user’s configuration CRs. The logical flow of the tool will be:
 1. User invokes the tool with the two inputs: `validationTool ./referenceConfig/ ./userConfig/`
+    1. When the tool is run against a live cluster the `./userConfig` input is made up of the set of
+       CRs pulled from the cluster based on the reference configuration. Only those CRs included in
+       the refernce configuration are pulled from the live cluster. Where the reference
+       configuration indicates user variability in CR name or namespace multiple CRs may be pulled
+       based on the kind and included in the `./userConfig`.
 1. For each CR in `./userConfig`
     1. Correlate the CR to a referenceConfig CR using api-kind-namespace-name (see [Correlating
        CRs](# Correlating-CRs) below)
