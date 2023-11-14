@@ -11,7 +11,7 @@ approvers:
   - "@imiller0"
 
 creation-date: 2023-08-17
-last-updated: 2023-08-25
+last-updated: 2023-11-14
 ---
 
 
@@ -75,12 +75,12 @@ last-updated: 2023-08-25
 
 * Update one of the SNO development validation repos to use the hub side templating reference configuration
 
-* Update the siteConfig CRD to include the desired configuration under a new optional **site-data** section.
+* Update the siteConfig CRD to include the desired configuration under a new optional **siteConfigMap** section.
   * with this new addition, SiteConfig will support maintaining per-site data that will be used in hub side templating.
-  * an alternative to populating the **site-data** section in the SiteConfig CR is to hold site-specific template data in the ZTP GitOps repo, as ConfigMaps (this template data will be synced to the hub cluster).
-    * using the new **site-data** section enables the user to keep all the site specific configuration in one CR rather than maintaining SiteConfig and per-site ConfigMaps in Git.
-  * if the user wants to update any site specific configuration, they can do so by modifying the corresponding data under the **site-data**.
-    * the SiteConfig Generator will update the ConfigMaps on the hub cluster with the new configuration
+  * an alternative to populating the **siteConfigMap** section in the SiteConfig CR is to hold site-specific template data in the ZTP GitOps repo, as ConfigMap(s) (this template data will be synced to the hub cluster).
+    * using the new **siteConfigMap** section enables the user to keep all the site specific configuration in one CR rather than maintaining SiteConfig and per-site ConfigMaps in Git.
+  * if the user wants to update any site specific configuration, they can do so by modifying the corresponding data under the **siteConfigMap**.
+    * the SiteConfig Generator will update the ConfigMap on the hub cluster with the new configuration
   ```yaml
   apiVersion: ran.openshift.io/v1
   kind: SiteConfig
@@ -89,36 +89,49 @@ last-updated: 2023-08-25
     namespace: "cluster-001"
   spec:
     ...
-    site-data:
-      node0-networkNamespace: "aaaaa"
-      node0-vlan-1: 140
-      node1-networkNamespace: "bbbbb"
-      node1-vlan-1: 120
+    clusters:
+    - cluster-name: sno-1
+      siteConfigMap:
+        name: <ConfigMap name>
+        namespace: <ConfigMap namespace>
+        data:
+          # group value - hardware type
+          dell-poweredge-xr12-cpu-isolated: "2-31,34-63"
+          # group value - zone
+          zone-1-cluster-log-fwd-inputs: "[{\"name\": \"my-app-logs\", \"application\": {\"namespaces\": [\"my-project\"]}}]"
+          # site specific value
+          sno-1-sriov-network-vlan-1: "140"
+      nodes:
+        - hostName: sno-1-node-0
+          ...
+
     ...
   ```
 
-* Update the SiteConfig Generator to create the corresponding ConfigMaps. The generated ConfigMaps will be named as ztp-site-<cluster_name>-configMap and will be created under the same namespace as the policy resource.
-  * The **site-data** section will include the namespace where the ConfigMap will be created.
+* Update the SiteConfig Generator to create the corresponding ConfigMap.
+  * By default, the generated ConfigMap will be named as ztp-site-<cluster_name> and will be created under the **ztp-site** namespace
+  * The **siteConfigMap** section can override the default name and namespace.
     ```yaml
-    site-data:
-      configMapNamespace: abcd
+    siteConfigMap:
+      name: abcd
+      namespace: zzz
     ```
-  * The **site-data.configMapNamespace** must be the same as the namespace used by the PolicyGenTemplate resources
-  * If **site-data.configMapNamespace** is not specified, it will default to **ztp-site**
+  * The **siteConfigMap.namespace** should be the same as the namespace used by the PolicyGenTemplate resources
+  * If **siteConfigMap.data** is missing from siteConfig, but at least one of **siteConfigMap.name** or **siteConfigMap.namespace** is present, the ConfigMap will be created empty with the possibility of updating it in the future.
 
 ## Template examples
 * Template using a label from the ManagedCluster
   ```yaml
-  isolated: {{hub fromConfigMap "" "myMapName" (printf "%s-isolcpus" .ManagedClusterLabels.myLabelName) hub}}
+  isolated: '{{hub fromConfigMap "" (printf "ztp-site-%s" .ManagedClusterName) (printf "%s-cpu-isolated" (index .ManagedClusterLabels "hardware-type")) hub}}'
   ```
 * Template using site specific configuration from a ConfigMap
   ```yaml
-  networkNamespace: '{{hub fromConfigMap "" "site-data" (printf "%s-app-namespace" .ManagedClusterName) hub}}'
+  networkNamespace: '{{hub fromConfigMap "" (printf "ztp-site-%s" .ManagedClusterName) (printf "%s-hwevent-transportHost" (index .ManagedClusterLabels "group-du-sno-zone")) hub}}'
   ```
 
 ### Documentation impact
 The OCP PGT documentation should have the following updates:
-* update at least one SiteConfig example to include the new optional **site-data** section
+* update at least one SiteConfig example to include the new optional **siteConfigMap** section
   * suggestion: under [*Example single-node OpenShift cluster SiteConfig CR*](https://docs.openshift.com/container-platform/4.13/scalability_and_performance/ztp_far_edge/ztp-deploying-far-edge-sites.html#ztp-deploying-a-site_ztp-deploying-far-edge-sites)
 * include at least one PGT example that includes templating
   * suggestion: new note or paragraph under [*Recommendations when customizing PolicyGenTemplate CRs*](https://docs.openshift.com/container-platform/4.13/scalability_and_performance/ztp_far_edge/ztp-configuring-managed-clusters-policies.html#ztp-pgt-config-best-practices_ztp-configuring-managed-clusters-policies)
